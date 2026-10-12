@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="theme-color" content="#08080d">
+<title>SYSTEM QUEST — Visszaszámlálás</title>
+<style>
+:root{color-scheme:dark;--red:#ff294b;--glow:rgba(255,41,75,.32);--panel:#111119;--muted:#a6a6b5}
+*{box-sizing:border-box}
+body{margin:0;min-height:100vh;display:grid;place-items:center;padding:22px;background:radial-gradient(ellipse at 50% 0%,#35101d 0%,#111019 38%,#07070b 78%);color:#f7f7fb;font-family:Inter,system-ui,-apple-system,Segoe UI,sans-serif}
+.wrap{width:min(760px,100%)}
+.top{display:flex;justify-content:space-between;align-items:center;gap:12px;color:var(--red);font-size:.78rem;letter-spacing:.2em;font-weight:800}
+.status{border:1px solid #652033;padding:7px 10px;border-radius:5px;background:#220d16}
+.panel{margin-top:18px;border:1px solid #542033;background:linear-gradient(145deg,rgba(25,20,31,.97),rgba(10,10,16,.97));box-shadow:0 0 42px var(--glow);padding:clamp(22px,5vw,42px);position:relative;overflow:hidden}
+.panel:before{content:"";position:absolute;inset:0 0 auto;height:3px;background:linear-gradient(90deg,transparent,var(--red),transparent)}
+.eyebrow{color:var(--muted);letter-spacing:.22em;font-size:.72rem;font-weight:700;margin:0 0 12px}
+h1{font-size:clamp(2rem,8vw,4rem);line-height:1.02;letter-spacing:.03em;margin:0;text-transform:uppercase;overflow-wrap:anywhere}
+.description{color:#c9c7d4;line-height:1.6;margin:16px 0 26px;white-space:pre-wrap;overflow-wrap:anywhere}
+.clock{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}
+.unit{border:1px solid #352432;background:#0a0a10;padding:17px 8px;text-align:center}
+.num{font-size:clamp(1.6rem,6vw,3rem);font-weight:850;line-height:1;font-variant-numeric:tabular-nums;color:#fff;text-shadow:0 0 18px var(--glow)}
+.label{font-size:.68rem;color:#aaa7b8;letter-spacing:.12em;margin-top:10px;text-transform:uppercase}
+.footer{display:flex;justify-content:space-between;gap:14px;flex-wrap:wrap;margin-top:24px;color:var(--muted);font-size:.84rem}
+#state{color:var(--red);font-weight:800}
+.controls{margin-top:20px;border:1px solid #292633;background:rgba(12,12,18,.9);padding:18px}
+.controls h2{font-size:1rem;margin:0 0 14px}
+label{display:block;color:#c9c7d4;font-size:.82rem;margin:12px 0 6px}
+input,textarea{width:100%;background:#08080d;color:#fff;border:1px solid #3c3545;border-radius:4px;padding:12px;font:inherit}
+textarea{min-height:74px;resize:vertical}
+button{border:1px solid var(--red);background:var(--red);color:white;padding:12px 16px;font-weight:800;border-radius:4px;cursor:pointer;margin:14px 8px 0 0}
+button.secondary{background:transparent;color:#f7f7fb;border-color:#514454}
+.note{font-size:.78rem;color:var(--muted);line-height:1.5;margin:14px 0 0}
+@media(max-width:420px){.clock{gap:6px}.unit{padding:14px 3px}.label{font-size:.58rem;letter-spacing:.06em}.top{font-size:.66rem}}
+</style>
+</head>
+<body>
+<main class="wrap">
+  <div class="top"><span>◆ SYSTEM INTERFACE</span><span class="status">QUEST ACTIVE</span></div>
+  <section class="panel">
+    <p class="eyebrow">DAILY QUEST / HATÁRIDŐ</p>
+    <h1 id="questTitle">SYSTEM QUEST</h1>
+    <p class="description" id="questDesc">Teljesítsd a feladatot a határidő lejárta előtt.</p>
+    <div class="clock" aria-label="Hátralévő idő">
+      <div class="unit"><div class="num" id="days">00</div><div class="label">Nap</div></div>
+      <div class="unit"><div class="num" id="hours">00</div><div class="label">Óra</div></div>
+      <div class="unit"><div class="num" id="minutes">00</div><div class="label">Perc</div></div>
+      <div class="unit"><div class="num" id="seconds">00</div><div class="label">Másodperc</div></div>
+    </div>
+    <div class="footer"><span>Határidő: <strong id="deadlineText">—</strong></span><span id="state">A KÜLDETÉS AKTÍV</span></div>
+  </section>
+  <section class="controls">
+    <h2>⚙ Küldetés beállítása</h2>
+    <label for="titleInput">Feladat neve</label>
+    <input id="titleInput" maxlength="90" value="SYSTEM QUEST">
+    <label for="descInput">Feladat leírása (nem kötelező)</label>
+    <textarea id="descInput" maxlength="500">Teljesítsd a feladatot a határidő lejárta előtt.</textarea>
+    <label for="deadlineInput">Határidő — a saját helyi időd szerint</label>
+    <input id="deadlineInput" type="datetime-local">
+    <button id="apply">Küldetés indítása</button>
+    <button id="share" class="secondary">Megosztható link másolása</button>
+    <p class="note" id="shareNote">A link ugyanazt a feladatot és határidőt nyitja meg mindenkinél. Ehhez az oldalt előbb fel kell tölteni egy webtárhelyre; a megosztott link csak a feltöltés után fog működni.</p>
+  </section>
+</main>
+<script>
+const $ = id => document.getElementById(id);
+let target = Date.now() + 24*60*60*1000;
+function pad(n){return String(n).padStart(2,'0')}
+function fmtDate(d){return new Intl.DateTimeFormat('hu-HU',{year:'numeric',month:'2-digit',day:'2-digit',hour:'2-digit',minute:'2-digit'}).format(d)}
+function update(){
+  const diff = target - Date.now();
+  if(diff <= 0){
+    ['days','hours','minutes','seconds'].forEach(id=>$(id).textContent='00');
+    $('state').textContent='A HATÁRIDŐ LEJÁRT';
+    document.querySelector('.status').textContent='QUEST EXPIRED';
+    return;
+  }
+  const s=Math.floor(diff/1000);
+  $('days').textContent=pad(Math.floor(s/86400));
+  $('hours').textContent=pad(Math.floor(s%86400/3600));
+  $('minutes').textContent=pad(Math.floor(s%3600/60));
+  $('seconds').textContent=pad(s%60);
+  $('state').textContent='A KÜLDETÉS AKTÍV';
+  document.querySelector('.status').textContent='QUEST ACTIVE';
+}
+function setInputsFromUrl(){
+  const p=new URLSearchParams(location.search);
+  const t=p.get('task'), d=p.get('desc'), until=p.get('until');
+  if(t!==null)$('titleInput').value=t;
+  if(d!==null)$('descInput').value=d;
+  if(until && !Number.isNaN(Date.parse(until))){
+    target=Date.parse(until);
+    const date=new Date(target);
+    const local=new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16);
+    $('deadlineInput').value=local;
+  }else{
+    const date=new Date(target);
+    $('deadlineInput').value=new Date(date.getTime()-date.getTimezoneOffset()*60000).toISOString().slice(0,16);
+  }
+}
+function render(){
+  $('questTitle').textContent=$('titleInput').value.trim()||'SYSTEM QUEST';
+  $('questDesc').textContent=$('descInput').value.trim()||'Teljesítsd a feladatot a határidő lejárta előtt.';
+  $('deadlineText').textContent=fmtDate(new Date(target));
+  update();
+}
+$('apply').addEventListener('click',()=>{
+  const val=$('deadlineInput').value;
+  if(!val){alert('Állíts be egy határidőt!');return}
+  target=new Date(val).getTime();
+  if(!Number.isFinite(target)){alert('Ez a határidő nem érvényes.');return}
+  render();
+  const p=new URLSearchParams({task:$('titleInput').value.trim()||'SYSTEM QUEST',desc:$('descInput').value.trim(),until:new Date(target).toISOString()});
+  history.replaceState(null,'',location.pathname+'?'+p.toString());
+});
+$('share').addEventListener('click',async()=>{
+  const p=new URLSearchParams({task:$('titleInput').value.trim()||'SYSTEM QUEST',desc:$('descInput').value.trim(),until:new Date(target).toISOString()});
+  const url=location.origin+location.pathname+'?'+p.toString();
+  try{
+    await navigator.clipboard.writeText(url);
+    $('shareNote').textContent='Link másolva — de csak akkor nyitható meg másoknak, ha ezt az oldalt már feltöltötted webtárhelyre. Link: '+url;
+  }catch(e){
+    $('shareNote').textContent='Másold ki ezt a linket (feltöltött tárhely szükséges): '+url;
+  }
+});
+setInputsFromUrl();render();setInterval(update,250);
+</script>
+</body>
+</html>
